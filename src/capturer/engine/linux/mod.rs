@@ -1,3 +1,4 @@
+use core::time;
 use std::{
     mem::size_of,
     sync::{
@@ -5,7 +6,7 @@ use std::{
         mpsc::{self, sync_channel, SyncSender},
     },
     thread::JoinHandle,
-    time::Duration,
+    time::{Duration, SystemTime},
 };
 
 use pipewire as pw;
@@ -31,7 +32,7 @@ use pw::{
 
 use crate::{
     capturer::Options,
-    frame::{BGRxFrame, Frame, RGBFrame, RGBxFrame, XBGRFrame},
+    frame::{BGRxFrame, Frame, RGBFrame, RGBxFrame, VideoFrame, XBGRFrame},
 };
 
 use self::{error::LinCapError, portal::ScreenCastPortal};
@@ -118,7 +119,9 @@ fn process_callback(stream: &StreamRef, user_data: &mut ListenerUserData) {
             if buffer.is_null() {
                 break 'outside;
             }
-            let timestamp = unsafe { get_timestamp(buffer) };
+            // let timestamp = unsafe { get_timestamp(buffer) };
+            // TODO: use timestamp from get_timestamp
+            let timestamp = SystemTime::now();
 
             let n_datas = unsafe { (*buffer).n_datas };
             if n_datas < 1 {
@@ -134,30 +137,30 @@ fn process_callback(stream: &StreamRef, user_data: &mut ListenerUserData) {
             };
 
             if let Err(e) = match user_data.format.format() {
-                VideoFormat::RGBx => user_data.tx.send(Frame::RGBx(RGBxFrame {
-                    display_time: timestamp as u64,
+                VideoFormat::RGBx => user_data.tx.send(Frame::Video(VideoFrame::RGBx(RGBxFrame {
+                    display_time: timestamp,
                     width: frame_size.width as i32,
                     height: frame_size.height as i32,
                     data: frame_data,
-                })),
-                VideoFormat::RGB => user_data.tx.send(Frame::RGB(RGBFrame {
-                    display_time: timestamp as u64,
+                }))),
+                VideoFormat::RGB => user_data.tx.send(Frame::Video(VideoFrame::RGB(RGBFrame {
+                    display_time: timestamp,
                     width: frame_size.width as i32,
                     height: frame_size.height as i32,
                     data: frame_data,
-                })),
-                VideoFormat::xBGR => user_data.tx.send(Frame::XBGR(XBGRFrame {
-                    display_time: timestamp as u64,
+                }))),
+                VideoFormat::xBGR => user_data.tx.send(Frame::Video(VideoFrame::XBGR(XBGRFrame {
+                    display_time: timestamp,
                     width: frame_size.width as i32,
                     height: frame_size.height as i32,
                     data: frame_data,
-                })),
-                VideoFormat::BGRx => user_data.tx.send(Frame::BGRx(BGRxFrame {
-                    display_time: timestamp as u64,
+                }))),
+                VideoFormat::BGRx => user_data.tx.send(Frame::Video(VideoFrame::BGRx(BGRxFrame {
+                    display_time: timestamp,
                     width: frame_size.width as i32,
                     height: frame_size.height as i32,
                     data: frame_data,
-                })),
+                }))),
                 _ => panic!("Unsupported frame format received"),
             } {
                 eprintln!("{e}");
