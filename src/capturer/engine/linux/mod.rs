@@ -91,23 +91,35 @@ fn state_changed_callback(
     }
 }
 
-unsafe fn get_timestamp(buffer: *mut spa_buffer) -> i64 {
-    let n_metas = (*buffer).n_metas;
-    if n_metas > 0 {
-        let mut meta_ptr = (*buffer).metas;
-        let metas_end = (*buffer).metas.wrapping_add(n_metas as usize);
-        while meta_ptr != metas_end {
-            if (*meta_ptr).type_ == SPA_META_Header {
-                let meta_header: &mut spa_meta_header =
-                    &mut *((*meta_ptr).data as *mut spa_meta_header);
-                return meta_header.pts;
-            }
-            meta_ptr = meta_ptr.wrapping_add(1);
-        }
-        0
-    } else {
-        0
+unsafe fn get_timestamp(buffer: *mut spa_buffer) -> Option<SystemTime> {
+    if buffer.is_null() {
+        return None;
     }
+
+    let n_metas = (*buffer).n_metas;
+    if n_metas == 0 {
+        return None;
+    }
+
+    let mut meta_ptr = (*buffer).metas;
+    let metas_end = meta_ptr.wrapping_add(n_metas as usize);
+
+    while meta_ptr != metas_end {
+        if (*meta_ptr).type_ == SPA_META_Header {
+            let meta_header = &*((*meta_ptr).data as *const spa_meta_header);
+
+            // pts is in nanoseconds (usually)
+            let pts_ns = meta_header.pts;
+            if pts_ns > 0 {
+                return Some(SystemTime::UNIX_EPOCH + Duration::from_nanos(pts_ns as u64));
+            } else {
+                return None;
+            }
+        }
+        meta_ptr = meta_ptr.wrapping_add(1);
+    }
+
+    None
 }
 
 fn process_callback(stream: &StreamRef, user_data: &mut ListenerUserData) {
@@ -118,8 +130,7 @@ fn process_callback(stream: &StreamRef, user_data: &mut ListenerUserData) {
             if buffer.is_null() {
                 break 'outside;
             }
-            let timestamp = unsafe { get_timestamp(buffer) };
-            let system_time = SystemTime::now();
+            let timestamp = unsafe { get_timestamp(buffer).unwrap_or(SystemTime::now()) };
 
             let n_datas = unsafe { (*buffer).n_datas };
             if n_datas < 1 {
@@ -136,25 +147,25 @@ fn process_callback(stream: &StreamRef, user_data: &mut ListenerUserData) {
 
             if let Err(e) = match user_data.format.format() {
                 VideoFormat::RGBx => user_data.tx.send(Frame::Video(VideoFrame::RGBx(RGBxFrame {
-                    display_time: system_time,
+                    display_time: timestamp,
                     width: frame_size.width as i32,
                     height: frame_size.height as i32,
                     data: frame_data,
                 }))),
                 VideoFormat::RGB => user_data.tx.send(Frame::Video(VideoFrame::RGB(RGBFrame {
-                    display_time: system_time,
+                    display_time: timestamp,
                     width: frame_size.width as i32,
                     height: frame_size.height as i32,
                     data: frame_data,
                 }))),
                 VideoFormat::xBGR => user_data.tx.send(Frame::Video(VideoFrame::XBGR(XBGRFrame {
-                    display_time: system_time,
+                    display_time: timestamp,
                     width: frame_size.width as i32,
                     height: frame_size.height as i32,
                     data: frame_data,
                 }))),
                 VideoFormat::BGRx => user_data.tx.send(Frame::Video(VideoFrame::BGRx(BGRxFrame {
-                    display_time: system_time,
+                    display_time: timestamp,
                     width: frame_size.width as i32,
                     height: frame_size.height as i32,
                     data: frame_data,
@@ -243,10 +254,17 @@ fn pipewire_capturer(
             }
         ),
         pw::spa::pod::property!(
-            FormatProperties::VideoMaxFramerate,
+            FormatProperties::VideoFramerate,
+            Choice,
+            Range,
             Fraction,
             pw::spa::utils::Fraction {
                 num: options.fps,
+                denom: 1
+            },
+            pw::spa::utils::Fraction { num: 0, denom: 1 },
+            pw::spa::utils::Fraction {
+                num: 1000,
                 denom: 1
             }
         ),
@@ -279,8 +297,12 @@ fn pipewire_capturer(
     .into_inner();
 
     let mut params = [
-        pw::spa::pod::Pod::from_bytes(&values).unwrap(),
-        pw::spa::pod::Pod::from_bytes(&metas_values).unwrap(),
+        pw::spa::pod::Pod::from_bytes(&values).ok_or(LinCapError::new(
+            "Not enough space in screen capture 'values' param.".to_string(),
+        ))?,
+        pw::spa::pod::Pod::from_bytes(&metas_values).ok_or(LinCapError::new(
+            "Not enough space in screen capture 'metas_values' param.".to_string(),
+        ))?,
     ];
 
     stream.connect(
