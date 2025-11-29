@@ -24,8 +24,18 @@ fn main() {
         }
     }
 
-    // // Get recording targets
+    // Get recording targets
     // let targets = scap::get_all_targets();
+    // for target in targets {
+    //     match target {
+    //         scap::Target::Window(window) => {
+    //             println!("Window: {:?}", window);
+    //         }
+    //         scap::Target::Display(display) => {
+    //             println!("Display: {:?}", display);
+    //         }
+    //     }
+    // }
 
     // Create Options
     let options = Options {
