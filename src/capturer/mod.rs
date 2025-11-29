@@ -103,6 +103,23 @@ impl std::fmt::Display for CapturerBuildError {
 impl Error for CapturerBuildError {}
 
 impl Capturer {
+    pub fn show_target_picker() -> Result<Vec<Target>, std::io::Error> {
+        #[cfg(target_os = "macos")]
+        return engine::mac::show_target_picker();
+
+        #[cfg(target_os = "windows")]
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Not supported on Windows",
+        ));
+
+        #[cfg(target_os = "linux")]
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Not supported on Linux",
+        ));
+    }
+
     /// Build a new [Capturer] instance with the provided options
     pub fn build(options: Options) -> Result<Capturer, CapturerBuildError> {
         if !is_supported() {

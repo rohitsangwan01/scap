@@ -24,6 +24,9 @@ fn main() {
         }
     }
 
+    // let targets = Capturer::show_target_picker();
+    // println!("Target picker shown {:?}", targets);
+
     // Get recording targets
     // let targets = scap::get_all_targets();
     // for target in targets {
@@ -40,6 +43,7 @@ fn main() {
     // Create Options
     let options = Options {
         fps: 60,
+        // target: Some(targets.unwrap()[0].clone()),
         show_cursor: true,
         show_highlight: false,
         excluded_targets: None,

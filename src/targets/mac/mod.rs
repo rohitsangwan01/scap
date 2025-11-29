@@ -1,73 +1,54 @@
 #![allow(unexpected_cfgs)]
-
+use super::{Display, Target};
+use crate::engine::mac::ext::DirectDisplayIdExt;
 use cidre::{cg, sc};
 use cocoa::appkit::NSScreen;
 use cocoa::base::{id, nil};
 use cocoa::foundation::NSString;
 use futures::executor::block_on;
-use objc2::{msg_send, runtime::AnyObject};
+use objc::{msg_send, sel, sel_impl};
 
-use crate::engine::mac::ext::DirectDisplayIdExt;
-
-use super::{Display, Target};
-
-fn get_display_name(display_id: cg::DirectDisplayId) -> String {
+pub(crate) fn get_display_name(display_id: cg::DirectDisplayId) -> String {
     unsafe {
-        // Get all screens
         let screens: id = NSScreen::screens(nil);
-        let screens_obj: &AnyObject = &*(screens as *const AnyObject);
-        let count: u64 = msg_send![screens_obj, count];
-
+        let count: u64 = msg_send![screens, count];
         for i in 0..count {
-            let screen: &AnyObject = msg_send![screens_obj, objectAtIndex: i];
-            let device_description: &AnyObject = msg_send![screen, deviceDescription];
-            let key = NSString::alloc(nil).init_str("NSScreenNumber");
-            let key_obj: &AnyObject = &*(key as *const AnyObject);
-            let display_id_number: &AnyObject =
-                msg_send![device_description, objectForKey: key_obj];
+            let screen: id = msg_send![screens, objectAtIndex: i];
+            let device_description: id = msg_send![screen, deviceDescription];
+            let display_id_number: id = msg_send![device_description, objectForKey: NSString::alloc(nil).init_str("NSScreenNumber")];
             let display_id_number: u32 = msg_send![display_id_number, unsignedIntValue];
 
             if display_id_number == display_id.0 {
-                let localized_name: &AnyObject = msg_send![screen, localizedName];
+                let localized_name: id = msg_send![screen, localizedName];
                 let name: *const i8 = msg_send![localized_name, UTF8String];
                 return std::ffi::CStr::from_ptr(name)
                     .to_string_lossy()
                     .into_owned();
             }
         }
-
         format!("Unknown Display {}", display_id.0)
     }
 }
 
 pub fn get_all_targets() -> Vec<Target> {
     let mut targets: Vec<Target> = Vec::new();
-
     let content = block_on(sc::ShareableContent::current()).unwrap();
-
-    // Add displays to targets
     for display in content.displays().iter() {
         let id = display.display_id();
-
         let title = get_display_name(id);
-
         let target = Target::Display(super::Display {
             id: id.0,
             title,
             raw_handle: id,
         });
-
         targets.push(target);
     }
-
-    // Add windows to targets
     for window in content.windows().iter() {
         let id = window.id();
         let title = window
             .title()
             // on intel chips we can have Some but also a null pointer for some reason
             .filter(|v| !unsafe { v.utf8_chars_ar().is_null() });
-
         let target = Target::Window(super::Window {
             id,
             title: title.map(|v| v.to_string()).unwrap_or_default(),

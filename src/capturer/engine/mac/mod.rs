@@ -1,7 +1,12 @@
-use std::sync::atomic::AtomicBool;
-use std::sync::mpsc;
-use std::{cmp, sync::Arc};
-
+use super::ChannelItem;
+use crate::frame::{AudioFormat, AudioFrame, Frame, FrameType, VideoFrame};
+use crate::targets::{Target, Window};
+use crate::Display;
+use crate::{
+    capturer::{Area, Options, Point, Resolution, Size},
+    frame::BGRAFrame,
+    targets,
+};
 use cidre::mach;
 use cidre::sc::StreamDelegateImpl;
 use cidre::{
@@ -9,16 +14,9 @@ use cidre::{
     sc::{self, StreamDelegate, StreamOutput, StreamOutputImpl},
 };
 use futures::executor::block_on;
-
-use crate::frame::{AudioFormat, AudioFrame, Frame, FrameType, VideoFrame};
-use crate::targets::Target;
-use crate::{
-    capturer::{Area, Options, Point, Resolution, Size},
-    frame::BGRAFrame,
-    targets,
-};
-
-use super::ChannelItem;
+use std::sync::atomic::AtomicBool;
+use std::sync::mpsc;
+use std::{cmp, sync::Arc};
 
 pub(crate) mod ext;
 mod pixel_buffer;
@@ -73,6 +71,100 @@ impl sc::stream::OutputImpl for Capturer {
     }
 }
 
+#[repr(C)]
+struct ObserverInner {
+    pub tx: mpsc::Sender<Result<Vec<Target>, std::io::Error>>,
+}
+
+define_obj_type!(
+    Observer + sc::ContentSharingPickerObserverImpl,
+    ObserverInner,
+    PICKER_OBSERVER
+);
+
+impl sc::ContentSharingPickerObserver for Observer {}
+
+impl Observer {
+    fn terminate(&mut self, result: Result<Vec<Target>, std::io::Error>) {
+        let _ = self.inner_mut().tx.send(result);
+    }
+}
+
+#[objc::add_methods]
+impl sc::ContentSharingPickerObserverImpl for Observer {
+    extern "C" fn impl_picker_did_cancel_for_stream(
+        &mut self,
+        _cmd: Option<&objc::Sel>,
+        _picker: &mut sc::ContentSharingPicker,
+        _stream: Option<&sc::Stream>,
+    ) {
+        self.terminate(Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Canceled",
+        )));
+    }
+
+    extern "C" fn impl_picker_did_update_with_filter_for_stream(
+        &mut self,
+        _cmd: Option<&objc::Sel>,
+        _picker: &mut sc::ContentSharingPicker,
+        filter: &sc::ContentFilter,
+        _stream: Option<&sc::Stream>,
+    ) {
+        let mut picked_targets: Vec<Target> = Vec::new();
+        unsafe {
+            let display_targets = filter
+                .included_displays()
+                .iter()
+                .map(|display| {
+                    let display = display.retained();
+                    let title = targets::get_display_name(display.display_id());
+                    Target::Display(Display {
+                        id: display.display_id().0,
+                        title,
+                        raw_handle: display.display_id(),
+                    })
+                })
+                .collect::<Vec<Target>>();
+            let window_targets = filter
+                .retained()
+                .included_windows()
+                .iter()
+                .map(|window| window.retained())
+                .map(|window| {
+                    let title = window
+                        .title()
+                        // on intel chips we can have Some but also a null pointer for some reason
+                        .filter(|v| !v.utf8_chars_ar().is_null());
+                    Target::Window(Window {
+                        id: window.id(),
+                        title: title.map(|v| v.to_string()).unwrap_or_default(),
+                        raw_handle: window.id(),
+                    })
+                })
+                .collect::<Vec<Target>>();
+
+            picked_targets.extend(display_targets);
+            picked_targets.extend(window_targets);
+        }
+        self.terminate(Ok(picked_targets));
+    }
+
+    extern "C" fn impl_picker_start_did_fail_with_err(
+        &mut self,
+        _cmd: Option<&objc::Sel>,
+        err: &ns::Error,
+    ) {
+        self.terminate(Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!(
+                "Failed to start picker: {}",
+                err.localized_description().to_string()
+            ),
+        )));
+    }
+}
+
 #[derive(thiserror::Error, Debug)]
 pub(crate) enum CreateCapturerError {
     #[error("{0}")]
@@ -81,6 +173,33 @@ pub(crate) enum CreateCapturerError {
     WindowNotFound(String),
     #[error("Display with title '{0}' not found")]
     DisplayNotFound(String),
+}
+
+pub fn show_target_picker() -> Result<Vec<Target>, std::io::Error> {
+    unsafe {
+        let (tx, rx) = mpsc::channel();
+        let _app = ns::App::shared();
+        let observer = Observer::with(ObserverInner { tx: tx });
+        let mut picker = sc::ContentSharingPicker::shared();
+        let mut cfg = picker.default_cfg();
+        cfg.set_allowed_picker_modes(
+            sc::ContentSharingPickerMode::SINGLE_DISPLAY
+                | sc::ContentSharingPickerMode::SINGLE_WINDOW,
+        );
+        picker.set_default_cfg(&cfg.retained());
+        picker.add_observer(observer.as_ref());
+        picker.set_active(true);
+        picker.present();
+        drop(_app);
+        if let Ok(picked_targets) = rx.recv() {
+            picked_targets
+        } else {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Failed to pick targets",
+            ))
+        }
+    }
 }
 
 pub(crate) fn create_capturer(
