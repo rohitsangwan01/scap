@@ -173,22 +173,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
-name = "cidre"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7a105a9a8dd9e625e1e5938aa8442f63551990bfb2ab4bd606b1b30ccbfd8cf"
-dependencies = [
- "cidre-macros",
- "parking_lot",
-]
-
-[[package]]
-name = "cidre-macros"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f07a383a232853874a9b0b3e80e6eefe9bea73495b8ab4bdd960bc7c1db4c6d"
-
-[[package]]
 name = "clang-sys"
 version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1079,7 +1063,6 @@ dependencies = [
 name = "scap"
 version = "0.1.0-beta.1"
 dependencies = [
- "cidre",
  "cocoa",
  "core-graphics-helmer-fork",
  "cpal",
@@ -1088,6 +1071,7 @@ dependencies = [
  "objc",
  "pipewire",
  "rand",
+ "screencapturekit",
  "sysinfo",
  "thiserror 2.0.12",
  "windows 0.58.0",
@@ -1099,6 +1083,12 @@ name = "scopeguard"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
+
+[[package]]
+name = "screencapturekit"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc6ae9b2bebd944fd913f06c1381fc50bb0941bc95fd14cdae5518cfb038948b"
 
 [[package]]
 name = "serde"

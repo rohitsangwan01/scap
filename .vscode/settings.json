@@ -2,5 +2,14 @@
   "[rust]": {
     "editor.formatOnSave": true
   },
-  "cSpell.words": ["appkit", "BGRA", "cidre", "pixelformat", "scap", "XBGR"]
+  "cSpell.words": [
+    "appkit",
+    "BGRA",
+    "cidre",
+    "pixelformat",
+    "scap",
+    "screencapturekit",
+    "Vardict",
+    "XBGR"
+  ]
 }

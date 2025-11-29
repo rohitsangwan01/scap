@@ -1,17 +1,16 @@
 #![allow(unexpected_cfgs)]
 
-use cidre::{cg, sc};
 use cocoa::appkit::NSScreen;
 use cocoa::base::{id, nil};
 use cocoa::foundation::NSString;
-use futures::executor::block_on;
 use objc::{msg_send, sel, sel_impl};
+use screencapturekit::prelude::*;
 
 use crate::engine::mac::ext::DirectDisplayIdExt;
 
 use super::{Display, Target};
 
-fn get_display_name(display_id: cg::DirectDisplayId) -> String {
+fn get_display_name(display_id: u32) -> String {
     unsafe {
         // Get all screens
         let screens: id = NSScreen::screens(nil);
@@ -23,7 +22,7 @@ fn get_display_name(display_id: cg::DirectDisplayId) -> String {
             let display_id_number: id = msg_send![device_description, objectForKey: NSString::alloc(nil).init_str("NSScreenNumber")];
             let display_id_number: u32 = msg_send![display_id_number, unsignedIntValue];
 
-            if display_id_number == display_id.0 {
+            if display_id_number == display_id {
                 let localized_name: id = msg_send![screen, localizedName];
                 let name: *const i8 = msg_send![localized_name, UTF8String];
                 return std::ffi::CStr::from_ptr(name)
@@ -32,14 +31,17 @@ fn get_display_name(display_id: cg::DirectDisplayId) -> String {
             }
         }
 
-        format!("Unknown Display {}", display_id.0)
+        format!("Unknown Display {}", display_id)
     }
 }
 
 pub fn get_all_targets() -> Vec<Target> {
     let mut targets: Vec<Target> = Vec::new();
 
-    let content = block_on(sc::ShareableContent::current()).unwrap();
+    let content = match SCShareableContent::get() {
+        Ok(c) => c,
+        Err(_) => return targets,
+    };
 
     // Add displays to targets
     for display in content.displays().iter() {
@@ -47,8 +49,8 @@ pub fn get_all_targets() -> Vec<Target> {
 
         let title = get_display_name(id);
 
-        let target = Target::Display(super::Display {
-            id: id.0,
+        let target = Target::Display(Display {
+            id,
             title,
             raw_handle: id,
         });
@@ -58,15 +60,12 @@ pub fn get_all_targets() -> Vec<Target> {
 
     // Add windows to targets
     for window in content.windows().iter() {
-        let id = window.id();
-        let title = window
-            .title()
-            // on intel chips we can have Some but also a null pointer for some reason
-            .filter(|v| !unsafe { v.utf8_chars_ar().is_null() });
+        let id = window.window_id();
+        let title = window.title().map(|s| s.to_string()).unwrap_or_default();
 
         let target = Target::Window(super::Window {
             id,
-            title: title.map(|v| v.to_string()).unwrap_or_default(),
+            title,
             raw_handle: id,
         });
         targets.push(target);
@@ -76,11 +75,13 @@ pub fn get_all_targets() -> Vec<Target> {
 }
 
 pub fn get_main_display() -> Display {
-    let id = cg::direct_display::Id::main();
+    use core_graphics_helmer_fork::display::CGDisplay;
+    let display = CGDisplay::main();
+    let id = display.id;
     let title = get_display_name(id);
 
     Display {
-        id: id.0,
+        id,
         title,
         raw_handle: id,
     }
@@ -90,7 +91,7 @@ pub fn get_scale_factor(target: &Target) -> f64 {
     match target {
         Target::Window(window) => {
             // Get the window's frame to determine which display it's on
-            let content = match block_on(sc::ShareableContent::current()) {
+            let content = match SCShareableContent::get() {
                 Ok(c) => c,
                 Err(_) => return 1.0, // fallback on SC failures to avoid panic
             };
@@ -99,24 +100,25 @@ pub fn get_scale_factor(target: &Target) -> f64 {
             if let Some(sc_window) = content
                 .windows()
                 .iter()
-                .find(|w| w.id() == window.raw_handle)
+                .find(|w| w.window_id() == window.raw_handle)
             {
                 let window_frame = sc_window.frame();
-                let window_center_x = window_frame.origin.x + window_frame.size.width / 2.0;
-                let window_center_y = window_frame.origin.y + window_frame.size.height / 2.0;
+                let window_center_x = window_frame.x + window_frame.width / 2.0;
+                let window_center_y = window_frame.y + window_frame.height / 2.0;
 
                 // Find which display contains the center of the window
                 for display in content.displays().iter() {
                     let display_id = display.display_id();
-                    let bounds = display_id.bounds();
+                    let bounds = display.frame();
 
-                    if window_center_x >= bounds.origin.x
-                        && window_center_x < bounds.origin.x + bounds.size.width
-                        && window_center_y >= bounds.origin.y
-                        && window_center_y < bounds.origin.y + bounds.size.height
+                    if window_center_x >= bounds.x
+                        && window_center_x < bounds.x + bounds.width
+                        && window_center_y >= bounds.y
+                        && window_center_y < bounds.y + bounds.height
                     {
                         // Found the display containing the window's center
-                        if let Some(mode) = display_id.display_mode() {
+                        let cg_display_id = display_id;
+                        if let Some(mode) = cg_display_id.display_mode() {
                             return (mode.pixel_width() as f64) / mode.width() as f64;
                         }
                     }
@@ -137,7 +139,7 @@ pub fn get_target_dimensions(target: &Target) -> (u64, u64) {
     match target {
         Target::Window(window) => {
             // Get the window's frame to determine which display it's on
-            let content = match block_on(sc::ShareableContent::current()) {
+            let content = match SCShareableContent::get() {
                 Ok(c) => c,
                 Err(_) => return (1, 1), // fallback on SC failures to avoid panic
             };
@@ -146,24 +148,25 @@ pub fn get_target_dimensions(target: &Target) -> (u64, u64) {
             if let Some(sc_window) = content
                 .windows()
                 .iter()
-                .find(|w| w.id() == window.raw_handle)
+                .find(|w| w.window_id() == window.raw_handle)
             {
                 let window_frame = sc_window.frame();
-                let window_center_x = window_frame.origin.x + window_frame.size.width / 2.0;
-                let window_center_y = window_frame.origin.y + window_frame.size.height / 2.0;
+                let window_center_x = window_frame.x + window_frame.width / 2.0;
+                let window_center_y = window_frame.y + window_frame.height / 2.0;
 
                 // Find which display contains the center of the window
                 for display in content.displays().iter() {
                     let display_id = display.display_id();
-                    let bounds = display_id.bounds();
+                    let bounds = display.frame();
 
-                    if window_center_x >= bounds.origin.x
-                        && window_center_x < bounds.origin.x + bounds.size.width
-                        && window_center_y >= bounds.origin.y
-                        && window_center_y < bounds.origin.y + bounds.size.height
+                    if window_center_x >= bounds.x
+                        && window_center_x < bounds.x + bounds.width
+                        && window_center_y >= bounds.y
+                        && window_center_y < bounds.y + bounds.height
                     {
                         // Found the display containing the window's center
-                        if let Some(mode) = display_id.display_mode() {
+                        let cg_display_id = display_id;
+                        if let Some(mode) = cg_display_id.display_mode() {
                             return (mode.pixel_width() as u64, mode.pixel_height() as u64);
                         }
                     }

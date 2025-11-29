@@ -16,8 +16,8 @@ pub use linux::{capture_stream_builder::CaptureStreamBuilder, portal::StreamVard
 
 #[cfg(target_os = "macos")]
 pub type ChannelItem = (
-    cidre::arc::R<cidre::cm::SampleBuf>,
-    cidre::sc::stream::OutputType,
+    screencapturekit::cm::CMSampleBuffer,
+    screencapturekit::stream::output_type::SCStreamOutputType,
 );
 #[cfg(not(target_os = "macos"))]
 pub type ChannelItem = Frame;
@@ -45,9 +45,9 @@ pub struct Engine {
 
     #[cfg(target_os = "macos")]
     mac: (
-        cidre::arc::R<mac::Capturer>,
-        cidre::arc::R<mac::ErrorHandler>,
-        cidre::arc::R<cidre::sc::Stream>,
+        std::sync::Arc<mac::Capturer>,
+        std::sync::Arc<mac::ErrorHandler>,
+        screencapturekit::stream::sc_stream::SCStream,
     ),
     #[cfg(target_os = "macos")]
     error_flag: std::sync::Arc<std::sync::atomic::AtomicBool>,
@@ -60,6 +60,13 @@ pub struct Engine {
 }
 
 impl Engine {
+    pub fn show_target_picker(&self) {
+        #[cfg(target_os = "macos")]
+        {
+            mac::show_target_picker();
+        }
+    }
+
     pub fn new(options: &Options, tx: mpsc::Sender<ChannelItem>) -> Engine {
         #[cfg(target_os = "macos")]
         {
@@ -95,9 +102,7 @@ impl Engine {
     pub fn start(&mut self) {
         #[cfg(target_os = "macos")]
         {
-            use futures::executor::block_on;
-
-            block_on(self.mac.2.start()).expect("Failed to start capture");
+            self.mac.2.start_capture().expect("Failed to start capture");
         }
 
         #[cfg(target_os = "windows")]
@@ -114,9 +119,7 @@ impl Engine {
     pub fn stop(&mut self) {
         #[cfg(target_os = "macos")]
         {
-            use futures::executor::block_on;
-
-            block_on(self.mac.2.stop()).expect("Failed to stop capture");
+            self.mac.2.stop_capture().expect("Failed to stop capture");
         }
 
         #[cfg(target_os = "windows")]

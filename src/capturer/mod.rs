@@ -103,6 +103,11 @@ impl std::fmt::Display for CapturerBuildError {
 impl Error for CapturerBuildError {}
 
 impl Capturer {
+    /// Show window picker dialog
+    pub fn show_target_picker(&self) {
+        self.engine.show_target_picker();
+    }
+
     /// Build a new [Capturer] instance with the provided options
     pub fn build(options: Options) -> Result<Capturer, CapturerBuildError> {
         if !is_supported() {
