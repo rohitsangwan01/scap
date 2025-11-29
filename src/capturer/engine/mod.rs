@@ -12,7 +12,7 @@ mod win;
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(target_os = "linux")]
-pub use linux::capture_stream_builder::CaptureStreamBuilder;
+pub use linux::{capture_stream_builder::CaptureStreamBuilder, portal::StreamVardict};
 
 #[cfg(target_os = "macos")]
 pub type ChannelItem = (

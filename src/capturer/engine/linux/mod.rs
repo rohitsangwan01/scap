@@ -1,6 +1,6 @@
-mod error;
-mod portal;
 pub mod capture_stream_builder;
+mod error;
+pub mod portal;
 
 use std::{
     mem::size_of,

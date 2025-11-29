@@ -1,13 +1,21 @@
+use std::sync::Mutex;
+
 use crate::capturer::engine::linux::portal::ScreenCastPortal;
 pub use crate::capturer::engine::linux::portal::StreamVardict;
 
-/// Prepare a stream for capture and use the stream_id
+/// Prepare a stream for capture and use the stream_id.
+/// This struct is Send + Sync safe.
 pub struct CaptureStreamBuilder {
-    /// Hold connection to the portal
-    _connection: dbus::blocking::Connection,
+    /// Hold connection to the portal to keep the session alive.
+    /// Wrapped in Mutex to make the struct Sync.
+    _connection: Mutex<dbus::blocking::Connection>,
     pub stream_id: u32,
     pub stream_var_dict: StreamVardict,
 }
+
+// Safety: The connection is only held to keep the portal session alive.
+// It's wrapped in a Mutex so concurrent access is safe.
+unsafe impl Sync for CaptureStreamBuilder {}
 
 impl CaptureStreamBuilder {
     pub fn new() -> Self {
@@ -25,7 +33,7 @@ impl CaptureStreamBuilder {
         let stream_id = stream.pw_node_id();
 
         Self {
-            _connection: connection,
+            _connection: Mutex::new(connection),
             stream_id,
             stream_var_dict: stream.stream_dict(),
         }

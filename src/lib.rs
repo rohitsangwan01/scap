@@ -15,6 +15,9 @@ pub use utils::request_permission;
 #[cfg(target_os = "linux")]
 pub use capturer::engine::CaptureStreamBuilder;
 
+#[cfg(target_os = "linux")]
+pub use capturer::engine::StreamVardict;
+
 #[cfg(target_os = "macos")]
 pub mod engine {
     pub use crate::capturer::engine::mac;

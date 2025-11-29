@@ -165,10 +165,10 @@ type Response = Option<OrgFreedesktopPortalRequestResponse>;
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct StreamVardict {
-    id: Option<String>,
-    position: Option<(i32, i32)>,
-    size: Option<(i32, i32)>,
-    source_type: Option<u32>,
+    pub id: Option<String>,
+    pub position: Option<(i32, i32)>,
+    pub size: Option<(i32, i32)>,
+    pub source_type: Option<u32>,
 }
 
 #[derive(Debug)]
