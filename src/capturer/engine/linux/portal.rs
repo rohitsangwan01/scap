@@ -169,7 +169,6 @@ pub struct StreamVardict {
     position: Option<(i32, i32)>,
     size: Option<(i32, i32)>,
     source_type: Option<u32>,
-    mapping_id: Option<String>,
 }
 
 #[derive(Debug)]
@@ -195,7 +194,6 @@ impl Stream {
             position: None,
             size: None,
             source_type: None,
-            mapping_id: None,
         };
         if let Some(map_variant) = list.next() {
             if let Some(mut entries) = map_variant.as_iter() {

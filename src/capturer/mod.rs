@@ -73,6 +73,8 @@ pub struct Options {
     /// Only implemented for Windows and macOS currently
     pub captures_audio: bool,
     pub exclude_current_process_audio: bool,
+    /// Only implemented for Linux currently
+    pub stream_id: Option<u32>,
 }
 
 /// Screen capturer class

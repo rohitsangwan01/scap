@@ -1,3 +1,7 @@
+mod error;
+mod portal;
+pub mod capture_stream_builder;
+
 use std::{
     mem::size_of,
     sync::{
@@ -35,9 +39,6 @@ use crate::{
 };
 
 use self::{error::LinCapError, portal::ScreenCastPortal};
-
-mod error;
-mod portal;
 
 static CAPTURER_STATE: AtomicU8 = AtomicU8::new(0);
 static STREAM_STATE_CHANGED_TO_ERROR: AtomicBool = AtomicBool::new(false);
@@ -335,20 +336,26 @@ pub struct LinuxCapturer {
     capturer_join_handle: Option<JoinHandle<Result<(), LinCapError>>>,
     // The pipewire stream is deleted when the connection is dropped.
     // That's why we keep it alive
-    _connection: dbus::blocking::Connection,
+    _connection: Option<dbus::blocking::Connection>,
 }
 
 impl LinuxCapturer {
     // TODO: Error handling
     pub fn new(options: &Options, tx: mpsc::Sender<Frame>) -> Self {
-        let connection =
-            dbus::blocking::Connection::new_session().expect("Failed to create dbus connection");
-        let stream_id = ScreenCastPortal::new(&connection)
-            .show_cursor(options.show_cursor)
-            .expect("Unsupported cursor mode")
-            .create_stream()
-            .expect("Failed to get screencast stream")
-            .pw_node_id();
+        // if the stream_id is provided, we use it
+        let (stream_id, connection) = if let Some(stream_id) = options.stream_id {
+            (stream_id, None)
+        } else {
+            let connection = dbus::blocking::Connection::new_session()
+                .expect("Failed to create dbus connection");
+            let stream_id = ScreenCastPortal::new(&connection)
+                .show_cursor(options.show_cursor)
+                .expect("Unsupported cursor mode")
+                .create_stream()
+                .expect("Failed to get screencast stream")
+                .pw_node_id();
+            (stream_id, Some(connection))
+        };
 
         // TODO: Fix this hack
         let options = options.clone();

@@ -11,6 +11,8 @@ mod win;
 
 #[cfg(target_os = "linux")]
 mod linux;
+#[cfg(target_os = "linux")]
+pub use linux::capture_stream_builder::CaptureStreamBuilder;
 
 #[cfg(target_os = "macos")]
 pub type ChannelItem = (
