@@ -71,7 +71,7 @@ fn main() {
         match frame {
             VideoFrame::YUVFrame(frame) => {
                 println!(
-                    "Recieved YUV frame {} of width {} and height {} and pts {:?}",
+                    "Received YUV frame {} of width {} and height {} and pts {:?}",
                     i, frame.width, frame.height, frame.display_time
                 );
             }
@@ -83,31 +83,31 @@ fn main() {
             }
             VideoFrame::RGB(frame) => {
                 println!(
-                    "Recieved RGB frame {} of width {} and height {} and time {:?}",
+                    "Received RGB frame {} of width {} and height {} and time {:?}",
                     i, frame.width, frame.height, frame.display_time
                 );
             }
             VideoFrame::RGBx(frame) => {
                 println!(
-                    "Recieved RGBx frame of width {} and height {}",
+                    "Received RGBx frame of width {} and height {}",
                     frame.width, frame.height
                 );
             }
             VideoFrame::XBGR(frame) => {
                 println!(
-                    "Recieved xRGB frame of width {} and height {}",
+                    "Received xRGB frame of width {} and height {}",
                     frame.width, frame.height
                 );
             }
             VideoFrame::BGRx(frame) => {
                 println!(
-                    "Recieved BGRx frame of width {} and height {}",
+                    "Received BGRx frame of width {} and height {}",
                     frame.width, frame.height
                 );
             }
             VideoFrame::BGRA(frame) => {
                 println!(
-                    "Recieved BGRA frame {} of width {} and height {} and time {:?}",
+                    "Received BGRA frame {} of width {} and height {} and time {:?}",
                     i, frame.width, frame.height, frame.display_time
                 );
             }

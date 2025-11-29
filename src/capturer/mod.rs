@@ -5,7 +5,7 @@ use std::{error::Error, sync::mpsc};
 use engine::ChannelItem;
 
 use crate::{
-    frame::{Frame, FrameType, VideoFrame},
+    frame::{Frame, FrameType},
     has_permission, is_supported,
     targets::Target,
 };

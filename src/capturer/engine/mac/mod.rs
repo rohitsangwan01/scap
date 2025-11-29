@@ -41,8 +41,8 @@ impl sc::stream::DelegateImpl for ErrorHandler {
     extern "C" fn impl_stream_did_stop_with_err(
         &mut self,
         _cmd: Option<&objc::Sel>,
-        stream: &sc::Stream,
-        error: &ns::Error,
+        _stream: &sc::Stream,
+        _error: &ns::Error,
     ) {
         eprintln!("Screen capture error occurred.");
         self.inner_mut()
