@@ -108,10 +108,7 @@ impl Capturer {
         return engine::mac::show_target_picker();
 
         #[cfg(target_os = "windows")]
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Not supported on Windows",
-        ));
+        return engine::win::show_target_picker();
 
         #[cfg(target_os = "linux")]
         return Err(std::io::Error::new(

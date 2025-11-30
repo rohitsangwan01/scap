@@ -1,30 +1,29 @@
 use crate::{
     capturer::{Area, Options, Point, Resolution, Size},
     frame::{AudioFormat, AudioFrame, BGRAFrame, Frame, FrameType, VideoFrame},
-    targets::{self, get_scale_factor, Target},
+    targets::{self, Target},
 };
-use ::windows::Win32::System::Performance::{QueryPerformanceCounter, QueryPerformanceFrequency};
-use cpal::{
-    traits::{DeviceTrait, HostTrait, StreamTrait},
-    StreamInstant,
+use ::windows::{
+    Graphics::DisplayId,
+    Win32::System::Performance::{QueryPerformanceCounter, QueryPerformanceFrequency},
+    UI::WindowId,
 };
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{cmp, time::Duration};
-use std::{
-    os::windows,
-    ptr::null_mut,
-    sync::mpsc::{self, Receiver, RecvTimeoutError, Sender},
-};
 use windows_capture::{
     capture::{CaptureControl, Context, GraphicsCaptureApiHandler},
     frame::Frame as WCFrame,
     graphics_capture_api::{GraphicsCaptureApi, InternalCaptureControl},
+    graphics_capture_picker::GraphicsCapturePicker,
     monitor::Monitor as WCMonitor,
     settings::{
         ColorFormat, CursorCaptureSettings, DirtyRegionSettings, DrawBorderSettings,
         MinimumUpdateIntervalSettings, SecondaryWindowSettings, Settings as WCSettings,
     },
     window::Window as WCWindow,
+    GraphicsCaptureItem,
 };
 
 #[derive(Debug)]
@@ -58,14 +57,14 @@ impl GraphicsCaptureApiHandler for Capturer {
             start_time: (
                 unsafe {
                     let mut time = 0;
-                    QueryPerformanceCounter(&mut time);
+                    let _ = QueryPerformanceCounter(&mut time);
                     time
                 },
                 SystemTime::now(),
             ),
             perf_freq: unsafe {
                 let mut freq = 0;
-                QueryPerformanceFrequency(&mut freq);
+                let _ = QueryPerformanceFrequency(&mut freq);
                 freq
             },
         })
@@ -76,8 +75,11 @@ impl GraphicsCaptureApiHandler for Capturer {
         frame: &mut WCFrame,
         _: InternalCaptureControl,
     ) -> Result<(), Self::Error> {
-        let elapsed = frame.timestamp().Duration - self.start_time.0;
-        let display_time = self
+        let elapsed = match frame.timestamp() {
+            Ok(frame_time) => frame_time.Duration - self.start_time.0,
+            Err(_) => 0,
+        };
+        let display_time: SystemTime = self
             .start_time
             .1
             .checked_add(Duration::from_secs_f64(
@@ -99,10 +101,8 @@ impl GraphicsCaptureApiHandler for Capturer {
                     .expect("Failed to crop buffer");
 
                 // get raw frame buffer
-                let raw_frame_buffer = match cropped_buffer.as_nopadding_buffer() {
-                    Ok(buffer) => buffer,
-                    Err(_) => return Err(("Failed to get raw buffer").into()),
-                };
+                let mut buffer = Vec::new();
+                let raw_frame_buffer = cropped_buffer.as_nopadding_buffer(&mut buffer);
 
                 let current_time = SystemTime::now()
                     .duration_since(UNIX_EPOCH)
@@ -180,6 +180,57 @@ struct FlagStruct {
 pub enum CreateCapturerError {
     AudioStreamConfig(cpal::DefaultStreamConfigError),
     BuildAudioStream(cpal::BuildStreamError),
+}
+
+pub fn show_target_picker() -> Result<Vec<Target>, std::io::Error> {
+    let picker = GraphicsCapturePicker::pick_item();
+    match picker {
+        Ok(Some(picker)) => {
+            let capture_item = picker.item;
+            let targets = targets::get_all_targets();
+            for target in targets {
+                match target {
+                    Target::Display(display) => {
+                        match GraphicsCaptureItem::TryCreateFromDisplayId(DisplayId {
+                            Value: display.raw_handle.0 as u64,
+                        }) {
+                            Ok(item) => {
+                                if capture_item.Size() == item.Size()
+                                    && capture_item.DisplayName() == item.DisplayName()
+                                {
+                                    return Ok(vec![Target::Display(display)]);
+                                }
+                            }
+                            Err(_) => {}
+                        }
+                    }
+                    Target::Window(window) => {
+                        match GraphicsCaptureItem::TryCreateFromWindowId(WindowId {
+                            Value: window.raw_handle.0 as u64,
+                        }) {
+                            Ok(item) => {
+                                if capture_item.Size() == item.Size()
+                                    && capture_item.DisplayName() == item.DisplayName()
+                                {
+                                    return Ok(vec![Target::Window(window)]);
+                                }
+                            }
+                            Err(_) => {}
+                        }
+                    }
+                }
+            }
+            Ok(Vec::new())
+        }
+        Ok(None) => Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "User canceled the picker",
+        )),
+        Err(e) => Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            e.to_string(),
+        )),
+    }
 }
 
 pub fn create_capturer(

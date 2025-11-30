@@ -7,7 +7,7 @@ use crate::frame::Frame;
 pub mod mac;
 
 #[cfg(target_os = "windows")]
-mod win;
+pub mod win;
 
 #[cfg(target_os = "linux")]
 mod linux;

@@ -6,7 +6,7 @@ use windows::Win32::{
 };
 use windows_capture::{monitor::Monitor, window::Window};
 
-pub fn get_all_targets() -> Vec<Target> {
+pub(crate) fn get_all_targets() -> Vec<Target> {
     let mut targets: Vec<Target> = Vec::new();
 
     // Add displays to targets
