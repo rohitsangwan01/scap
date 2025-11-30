@@ -13,10 +13,7 @@ pub use utils::is_supported;
 pub use utils::request_permission;
 
 #[cfg(target_os = "linux")]
-pub use capturer::engine::CaptureStreamBuilder;
-
-#[cfg(target_os = "linux")]
-pub use capturer::engine::StreamVardict;
+pub use capturer::engine::{CaptureStreamBuilder, StreamVardict};
 
 #[cfg(target_os = "macos")]
 pub mod engine {

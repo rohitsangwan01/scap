@@ -24,9 +24,10 @@ fn main() {
         }
     }
 
-    // let targets = Capturer::show_target_picker();
-    // println!("Target picker shown {:?}", targets);
-
+    // if let Ok(picked_data) = Capturer::show_target_picker() {
+    //     println!("Target picker shown {:?}", picked_data.targets);
+    //     return;
+    // }
     // Get recording targets
     // let targets = scap::get_all_targets();
     // for target in targets {

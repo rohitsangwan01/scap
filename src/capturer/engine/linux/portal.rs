@@ -169,6 +169,7 @@ pub struct StreamVardict {
     pub position: Option<(i32, i32)>,
     pub size: Option<(i32, i32)>,
     pub source_type: Option<u32>,
+    pub is_display: Option<bool>,
 }
 
 #[derive(Debug)]
@@ -194,6 +195,7 @@ impl Stream {
             position: None,
             size: None,
             source_type: None,
+            is_display: None,
         };
         if let Some(map_variant) = list.next() {
             if let Some(mut entries) = map_variant.as_iter() {
@@ -205,7 +207,10 @@ impl Stream {
                                 props.id = entry.as_str().map(|s| s.to_string());
                             }
                             "source_type" => {
-                                props.source_type = entry.as_u64().map(|v| v as u32);
+                                if let Some(source_type) = entry.as_u64().map(|v| v as u32) {
+                                    props.source_type = Some(source_type);
+                                    props.is_display = Some(source_type == 1);
+                                }
                             }
                             "position" => {
                                 if let Some(mut tup) = entry.as_iter() {

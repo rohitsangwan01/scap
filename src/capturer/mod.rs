@@ -4,6 +4,9 @@ use std::{error::Error, sync::mpsc};
 
 use engine::ChannelItem;
 
+#[cfg(target_os = "linux")]
+use crate::CaptureStreamBuilder;
+
 use crate::{
     frame::{Frame, FrameType},
     has_permission, is_supported,
@@ -73,8 +76,6 @@ pub struct Options {
     /// Only implemented for Windows and macOS currently
     pub captures_audio: bool,
     pub exclude_current_process_audio: bool,
-    /// Only implemented for Linux currently
-    pub stream_id: Option<u32>,
 }
 
 /// Screen capturer class
@@ -102,19 +103,38 @@ impl std::fmt::Display for CapturerBuildError {
 
 impl Error for CapturerBuildError {}
 
-impl Capturer {
-    pub fn show_target_picker() -> Result<Vec<Target>, std::io::Error> {
-        #[cfg(target_os = "macos")]
-        return engine::mac::show_target_picker();
+pub struct PickedData {
+    pub targets: Vec<Target>,
+    /// Make sure not to drop this to keep the portal session alive
+    #[cfg(target_os = "linux")]
+    pub capture_stream_builder: CaptureStreamBuilder,
+}
 
+unsafe impl Sync for PickedData {}
+
+impl Capturer {
+    pub fn show_target_picker() -> Result<PickedData, std::io::Error> {
+        #[cfg(target_os = "macos")]
+        {
+            return Ok(PickedData {
+                targets: engine::mac::show_target_picker()?,
+            });
+        }
         #[cfg(target_os = "windows")]
-        return engine::win::show_target_picker();
+        {
+            return Ok(PickedData {
+                targets: engine::win::show_target_picker()?,
+            });
+        }
 
         #[cfg(target_os = "linux")]
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Not supported on Linux",
-        ));
+        {
+            let stream_builder = CaptureStreamBuilder::new();
+            return Ok(PickedData {
+                targets: vec![stream_builder.get_target()],
+                capture_stream_builder: stream_builder,
+            });
+        }
     }
 
     /// Build a new [Capturer] instance with the provided options
