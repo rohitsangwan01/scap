@@ -153,14 +153,11 @@ impl sc::ContentSharingPickerObserverImpl for Observer {
     extern "C" fn impl_picker_start_did_fail_with_err(
         &mut self,
         _cmd: Option<&objc::Sel>,
-        err: &ns::Error,
+        _: &ns::Error,
     ) {
         self.terminate(Err(std::io::Error::new(
             std::io::ErrorKind::Other,
-            format!(
-                "Failed to start picker: {}",
-                err.localized_description().to_string()
-            ),
+            format!("Failed to start picker"),
         )));
     }
 }
@@ -176,29 +173,26 @@ pub(crate) enum CreateCapturerError {
 }
 
 pub fn show_target_picker() -> Result<Vec<Target>, std::io::Error> {
-    unsafe {
-        let (tx, rx) = mpsc::channel();
-        let _app = ns::App::shared();
-        let observer = Observer::with(ObserverInner { tx: tx });
-        let mut picker = sc::ContentSharingPicker::shared();
-        let mut cfg = picker.default_cfg();
-        cfg.set_allowed_picker_modes(
-            sc::ContentSharingPickerMode::SINGLE_DISPLAY
-                | sc::ContentSharingPickerMode::SINGLE_WINDOW,
-        );
-        picker.set_default_cfg(&cfg.retained());
-        picker.add_observer(observer.as_ref());
-        picker.set_active(true);
-        picker.present();
-        drop(_app);
-        if let Ok(picked_targets) = rx.recv() {
-            picked_targets
-        } else {
-            Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "Failed to pick targets",
-            ))
-        }
+    let (tx, rx) = mpsc::channel();
+    let _app = ns::App::shared();
+    let observer = Observer::with(ObserverInner { tx: tx });
+    let mut picker = sc::ContentSharingPicker::shared();
+    let mut cfg = picker.default_cfg();
+    cfg.set_allowed_picker_modes(
+        sc::ContentSharingPickerMode::SINGLE_DISPLAY | sc::ContentSharingPickerMode::SINGLE_WINDOW,
+    );
+    picker.set_default_cfg(&cfg.retained());
+    picker.add_observer(observer.as_ref());
+    picker.set_active(true);
+    picker.present();
+    drop(_app);
+    if let Ok(picked_targets) = rx.recv() {
+        picked_targets
+    } else {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Failed to pick targets",
+        ))
     }
 }
 

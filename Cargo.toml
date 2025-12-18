@@ -43,7 +43,7 @@ cidre = { version = "0.11.5", default-features = false, features = [
 	"app",
 	"sc",
 	"dispatch",
-	"macos_13_0",
+	"macos_14_0",
 ] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
