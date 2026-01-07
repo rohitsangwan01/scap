@@ -1,5 +1,6 @@
 #[cfg(target_os = "macos")]
 mod mac;
+
 #[cfg(target_os = "macos")]
 pub(crate) use mac::get_display_name;
 
@@ -13,6 +14,8 @@ mod linux;
 pub struct Window {
     pub id: u32,
     pub title: String,
+    pub size: Option<(u32, u32)>,
+    pub position: Option<(u32, u32)>,
 
     #[cfg(target_os = "windows")]
     pub raw_handle: windows::Win32::Foundation::HWND,
@@ -25,6 +28,8 @@ pub struct Window {
 pub struct Display {
     pub id: u32,
     pub title: String,
+    pub size: Option<(u32, u32)>,
+    pub position: Option<(u32, u32)>,
 
     #[cfg(target_os = "windows")]
     pub raw_handle: windows::Win32::Graphics::Gdi::HMONITOR,
@@ -37,6 +42,36 @@ pub struct Display {
 pub enum Target {
     Window(Window),
     Display(Display),
+}
+
+impl Target {
+    pub fn id(&self) -> u32 {
+        match self {
+            Target::Window(window) => window.id,
+            Target::Display(display) => display.id,
+        }
+    }
+
+    pub fn title(&self) -> String {
+        match self {
+            Target::Window(window) => window.title.clone(),
+            Target::Display(display) => display.title.clone(),
+        }
+    }
+
+    pub fn size(&self) -> Option<(u32, u32)> {
+        match self {
+            Target::Window(window) => window.size,
+            Target::Display(display) => display.size,
+        }
+    }
+
+    pub fn position(&self) -> Option<(u32, u32)> {
+        match self {
+            Target::Window(window) => window.position,
+            Target::Display(display) => display.position,
+        }
+    }
 }
 
 /// Returns a list of targets that can be captured

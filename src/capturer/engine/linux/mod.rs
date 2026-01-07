@@ -343,8 +343,8 @@ impl LinuxCapturer {
     // TODO: Error handling
     pub fn new(options: &Options, tx: mpsc::Sender<Frame>) -> Self {
         // if the stream_id is provided, we use it
-        let (stream_id, connection) = if let Some(stream_id) = options.stream_id {
-            (stream_id, None)
+        let (stream_id, connection) = if let Some(target) = options.target.clone() {
+            (target.id(), None)
         } else {
             let connection = dbus::blocking::Connection::new_session()
                 .expect("Failed to create dbus connection");
